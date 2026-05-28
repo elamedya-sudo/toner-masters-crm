@@ -11,7 +11,6 @@ import {
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
 
-// Tip tanımlamaları
 interface AlarmTask {
   id: string;
   trigger_date: string;
@@ -27,7 +26,6 @@ interface ChartItem {
 }
 
 export default function DashboardPage() {
-  // Canlı veri stateleri
   const [loading, setLoading] = useState(true);
   const [dailyCiro, setDailyCiro] = useState(0);
   const [alarms, setAlarms] = useState<AlarmTask[]>([]);
@@ -35,7 +33,6 @@ export default function DashboardPage() {
   const [topProducts, setTopProducts] = useState<{ name: string; adet: number }[]>([]);
   const [topCustomers, setTopCustomers] = useState<{ name: string; ciro: number; adet: number }[]>([]);
 
-  // Sabit veya API'den gelecek Ads bütçesi (Şimdilik karşılaştırma için haftalık simüle)
   const dailyAdsSpend = 120.50; 
 
   useEffect(() => {
@@ -43,7 +40,6 @@ export default function DashboardPage() {
       try {
         setLoading(true);
 
-        // 1. SON 7 GÜNLÜK SİPARİŞLERİ ÇEK
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         
@@ -54,7 +50,6 @@ export default function DashboardPage() {
 
         if (ordersError) throw ordersError;
 
-        // 2. TONER ALARMLARINI ÇEK (Müşteri ve Ürün bilgileriyle birlikte - JOIN)
         const { data: tasks, error: tasksError } = await supabase
           .from('replenishment_tasks')
           .select(`
@@ -69,31 +64,30 @@ export default function DashboardPage() {
         if (tasksError) throw tasksError;
         setAlarms(tasks as unknown as AlarmTask[]);
 
-        // 3. SİPARİŞ VERİLERİNİ HESAPLA VE GRAFİĞE DÖNÜŞTÜR
         let todayTotal = 0;
         const todayStr = new Date().toISOString().split('T')[0];
         
-        // Grafik günlerini hazırla
         const daysOfWeek = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
         const processedChartData = daysOfWeek.map(day => ({ name: day, ciro: 0, ads: dailyAdsSpend }));
 
-        // En değerli müşteriler için geçici harita
         const customerMap: { [key: string]: { name: string; ciro: number; adet: number } } = {};
 
-        orders?.forEach(order => {
+        // VERCEL HATASINI ÇÖZEN KISIM: (order: any) diyerek tip zorlamasını aşıyoruz
+        orders?.forEach((order: any) => {
           const orderDate = order.created_at.split('T')[0];
           if (orderDate === todayStr) {
             todayTotal += Number(order.total_amount);
           }
 
-          // Grafik günü eşleştirme (Örnek mantık: siparişin gün indeksine göre dağıtım)
           const dayIndex = new Date(order.created_at).getDay(); 
-          const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1; // Pazar gününü sona alma
+          const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1; 
           processedChartData[adjustedIndex].ciro += Number(order.total_amount);
 
-          // En iyi müşterileri hesapla
           if (order.customers) {
-            const cName = order.customers.company_name || `${order.customers.first_name} ${order.customers.last_name}`;
+            // Supabase Join verisi dizi veya obje gelebilir, güvenli okuma yapıyoruz
+            const cObj = Array.isArray(order.customers) ? order.customers[0] : order.customers;
+            const cName = cObj?.company_name || `${cObj?.first_name || ''} ${cObj?.last_name || ''}`;
+            
             if (!customerMap[cName]) {
               customerMap[cName] = { name: cName, ciro: 0, adet: 0 };
             }
@@ -105,23 +99,23 @@ export default function DashboardPage() {
         setDailyCiro(todayTotal);
         setChartData(processedChartData);
         
-        // En iyi 3 müşteriyi sırala ve kaydet
         const sortedCustomers = Object.values(customerMap)
           .sort((a, b) => b.ciro - a.ciro)
           .slice(0, 3);
         setTopCustomers(sortedCustomers);
 
-        // 4. ÇOK SATAN ÜRÜNLERİ ÇEK
         const { data: orderItems, error: itemsError } = await supabase
           .from('order_items')
           .select('quantity, products(name)')
-          .limit(20); // Performans için son kalemlerden hesaplama
+          .limit(20); 
 
         if (!itemsError && orderItems) {
           const productMap: { [key: string]: number } = {};
-          orderItems.forEach(item => {
+          // VERCEL HATASINI ÇÖZEN KISIM: (item: any) diyerek tip zorlamasını aşıyoruz
+          orderItems.forEach((item: any) => {
             if (item.products) {
-              const pName = item.products.name;
+              const pObj = Array.isArray(item.products) ? item.products[0] : item.products;
+              const pName = pObj?.name || 'Bilinmeyen Ürün';
               productMap[pName] = (productMap[pName] || 0) + item.quantity;
             }
           });
@@ -142,7 +136,6 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, []);
 
-  // ROAS Oranı Hesaplama
   const roas = dailyAdsSpend > 0 ? (dailyCiro / dailyAdsSpend).toFixed(1) : '0.0';
 
   if (loading) {
@@ -159,7 +152,7 @@ export default function DashboardPage() {
   return (
     <div className="flex h-screen w-full bg-slate-50 font-sans overflow-hidden">
       
-      {/* SOL MENÜ (Sidebar) */}
+      {/* SOL MENÜ */}
       <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col h-full shadow-xl z-10">
         <div className="p-6 flex items-center gap-3 border-b border-slate-800">
           <div className="bg-blue-600 p-2 rounded-lg">
@@ -199,7 +192,7 @@ export default function DashboardPage() {
         </div>
       </aside>
 
-      {/* ANA İÇERİK ALANI */}
+      {/* ANA İÇERİK */}
       <main className="flex-1 overflow-y-auto p-8">
         <header className="mb-8">
           <h2 className="text-slate-500 font-bold mb-1">Toner Masters CRM</h2>
@@ -208,7 +201,6 @@ export default function DashboardPage() {
           </h1>
         </header>
 
-        {/* ÜST BLOK: CANLI FİNANSAL KARTLAR */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
             <div className="bg-green-100 p-4 rounded-full text-green-600">
@@ -244,7 +236,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ORTA BLOK: GERÇEK GRAFİK VE ALARMLAR */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
@@ -263,7 +254,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* CANLI TONER ALARMLARI */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-slate-800">Toner Döngüsü Alarmları ({alarms.length})</h3>
@@ -300,7 +290,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ALT BLOK: LİDERLİK TABLOLARI */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-8">
           
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
