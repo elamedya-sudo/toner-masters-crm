@@ -3,24 +3,33 @@ import { supabase } from '../../../lib/supabase';
 
 export async function POST(request: Request) {
   try {
-    // Gelen JSON verisini ve başlıkları (Headers) al
-    const payload = await request.json();
-    const event = request.headers.get('x-wc-webhook-event'); // WooCommerce'in gönderdiği olay türü
+    const event = request.headers.get('x-wc-webhook-event');
+    
+    // 1. ZIRH: Gelen paketi direkt JSON yapmaya zorlamak yerine önce ham metin olarak alıyoruz
+    const rawBody = await request.text();
+    let payload: any = {};
 
-    // 1. PING (TEST) KONTROLÜ
-    // WooCommerce kaydet tuşuna basınca veya test yaparken 'ping' olayı gönderir
+    try {
+      // Eğer düzgün bir JSON ise (Gerçek siparişlerde burası çalışacak)
+      payload = JSON.parse(rawBody);
+    } catch (parseError) {
+      // Eğer JSON değilse ve 'webhook_id=4' gibi form datası olarak geliyorsa (Ping atarken burası çalışacak)
+      const params = new URLSearchParams(rawBody);
+      payload = Object.fromEntries(params);
+    }
+
+    // 2. PING (TEST) KONTROLÜ
     if (event === 'ping' || payload.webhook_id) {
       console.log('WooCommerce Ping başarılı!');
       return NextResponse.json({ message: 'Webhook başarıyla bağlandı!' }, { status: 200 });
     }
 
-    // Gelen veride sipariş numarası (id) veya fatura (billing) detayı yoksa işlemi durdur (çökmeyi engeller)
+    // Sipariş numarası veya fatura detayı yoksa işlemi durdur
     if (!payload.id || !payload.billing) {
       return NextResponse.json({ error: 'Sipariş detayları eksik veya geçersiz format.' }, { status: 400 });
     }
 
-    // 2. MÜŞTERİ BİLGİSİNİ KAYDET VEYA GÜNCELLE
-    // Her ihtimale karşı '?.' (Optional Chaining) kullanarak verinin boş gelme ihtimaline karşı sistemi koruyoruz
+    // 3. MÜŞTERİ BİLGİSİNİ KAYDET VEYA GÜNCELLE
     const email = payload.billing?.email || `no-email-${payload.id}@tonermasters.com.au`;
     
     const { data: customerData, error: customerError } = await supabase
@@ -39,7 +48,7 @@ export async function POST(request: Request) {
     if (customerError) throw customerError;
     const supabaseCustomerId = customerData.id;
 
-    // 3. SİPARİŞİ KAYDET
+    // 4. SİPARİŞİ KAYDET
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .upsert({
@@ -54,7 +63,7 @@ export async function POST(request: Request) {
     if (orderError) throw orderError;
     const supabaseOrderId = orderData.id;
 
-    // 4. SİPARİŞ KALEMLERİ VE TONER ALARMLARI
+    // 5. SİPARİŞ KALEMLERİ VE TONER ALARMLARI
     const lineItems = payload.line_items || [];
     
     for (const item of lineItems) {
