@@ -39,7 +39,7 @@ export default function ProposalsPage() {
 
   const totalAmount = items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
 
-  const handleSaveProposal = async () => {
+ const handleSaveProposal = async () => {
     if (!selectedCustomerId || !title) return alert("Please select a customer and enter a proposal title.");
     
     setLoading(true);
@@ -57,11 +57,11 @@ export default function ProposalsPage() {
         .select('id')
         .single();
 
-      if (proposalError) throw proposalError;
+      if (proposalError) throw proposalError; // Hata varsa burada yakalanacak
 
       const proposalItems = items.map(item => ({
         proposal_id: proposalData.id,
-        product_name: item.product_name,
+        product_name: item.product_name || 'İsimsiz Ürün',
         quantity: item.quantity,
         unit_price: item.unit_price,
         total_price: item.quantity * item.unit_price
@@ -72,9 +72,10 @@ export default function ProposalsPage() {
 
       alert("Proposal successfully saved!");
       router.push('/dashboard'); 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Save error:", error);
-      alert("An error occurred while saving the proposal.");
+      // HATA DETAYINI EKRANA FIRLATAN SİHİRLİ SATIR:
+      alert("HATA BULDUM:\n" + JSON.stringify(error, null, 2));
     } finally {
       setLoading(false);
     }
