@@ -39,11 +39,12 @@ export default function ProposalsPage() {
 
   const totalAmount = items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
 
- const handleSaveProposal = async () => {
+  const handleSaveProposal = async () => {
     if (!selectedCustomerId || !title) return alert("Please select a customer and enter a proposal title.");
     
     setLoading(true);
     try {
+      // 1. Ana Teklifi Kaydet
       const { data: proposalData, error: proposalError } = await supabase
         .from('proposals')
         .insert({
@@ -57,11 +58,12 @@ export default function ProposalsPage() {
         .select('id')
         .single();
 
-      if (proposalError) throw proposalError; // Hata varsa burada yakalanacak
+      if (proposalError) throw proposalError;
 
+      // 2. Teklif Kalemlerini Kaydet
       const proposalItems = items.map(item => ({
         proposal_id: proposalData.id,
-        product_name: item.product_name || 'İsimsiz Ürün',
+        product_name: item.product_name || 'Unnamed Item',
         quantity: item.quantity,
         unit_price: item.unit_price,
         total_price: item.quantity * item.unit_price
@@ -74,8 +76,7 @@ export default function ProposalsPage() {
       router.push('/dashboard'); 
     } catch (error: any) {
       console.error("Save error:", error);
-      // HATA DETAYINI EKRANA FIRLATAN SİHİRLİ SATIR:
-      alert("HATA BULDUM:\n" + JSON.stringify(error, null, 2));
+      alert("An error occurred while saving the proposal. Please try again.");
     } finally {
       setLoading(false);
     }
