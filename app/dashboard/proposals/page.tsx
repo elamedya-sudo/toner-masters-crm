@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, ShoppingCart, Users, Bell, FileText, 
-  LogOut, Plus, Trash2, Save, Send, ArrowLeft
+  LogOut, Plus, Trash2, Save, Send, ArrowLeft, RefreshCw 
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
