@@ -1,3 +1,4 @@
+// app/api/woo-webhook/route.ts
 import { NextResponse } from 'next/server';
 import { supabase } from '../../../lib/supabase';
 
@@ -15,21 +16,22 @@ export async function POST(request: Request) {
     }
 
     if (event === 'ping' || payload.webhook_id) {
-      return NextResponse.json({ message: 'Webhook başarıyla bağlandı!' }, { status: 200 });
+      return NextResponse.json({ message: 'Webhook connected successfully!' }, { status: 200 });
     }
 
     if (!payload.id || !payload.billing) {
-      return NextResponse.json({ error: 'Sipariş detayları eksik.' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing order details.' }, { status: 400 });
     }
 
     const email = payload.billing?.email || `no-email-${payload.id}@tonermasters.com.au`;
     
+    // Müşteri Kaydı
     const { data: customerData, error: customerError } = await supabase
       .from('customers')
       .upsert({
         woo_customer_id: payload.customer_id || null,
-        first_name: payload.billing?.first_name || 'Bilinmeyen',
-        last_name: payload.billing?.last_name || 'Müşteri',
+        first_name: payload.billing?.first_name || 'Guest',
+        last_name: payload.billing?.last_name || 'Customer',
         email: email,
         phone: payload.billing?.phone || '',
         company_name: payload.billing?.company || '',
@@ -40,10 +42,12 @@ export async function POST(request: Request) {
     if (customerError) throw customerError;
     const supabaseCustomerId = customerData.id;
 
+    // Sipariş Kaydı (order_number EKLENDİ)
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .upsert({
         woo_order_id: payload.id,
+        order_number: payload.number || String(payload.id),
         customer_id: supabaseCustomerId,
         status: payload.status,
         total_amount: parseFloat(payload.total || 0),
@@ -56,6 +60,7 @@ export async function POST(request: Request) {
 
     const lineItems = payload.line_items || [];
     
+    // Sipariş Kalemleri ve Alarmlar
     for (const item of lineItems) {
       let { data: productData } = await supabase
         .from('products')
@@ -69,7 +74,7 @@ export async function POST(request: Request) {
           .insert({
             woo_product_id: item.product_id,
             sku: item.sku || `SKU-${item.product_id}`,
-            name: item.name || 'İsimsiz Ürün',
+            name: item.name || 'Unnamed Product',
             price: parseFloat(item.price || 0),
             stock_quantity: 0,
             estimated_lifespan_days: 60
@@ -81,7 +86,6 @@ export async function POST(request: Request) {
       }
 
       if (productData) {
-        // Mükerrer kayıt engeli için sipariş kalemini güvenli insert yapıyoruz
         await supabase.from('order_items').upsert({
           order_id: supabaseOrderId,
           product_id: productData.id,
@@ -89,7 +93,7 @@ export async function POST(request: Request) {
           price: parseFloat(item.price || 0)
         }, { onConflict: 'id' });
 
-        // CRITICAL FIX: Bu sipariş ve bu ürün için halihazırda kurulmuş bir alarm var mı?
+        // Mükerrer Alarm Engelleyici
         const { data: existingTask } = await supabase
           .from('replenishment_tasks')
           .select('id')
@@ -97,7 +101,6 @@ export async function POST(request: Request) {
           .eq('product_id', productData.id)
           .maybeSingle();
 
-        // Eğer alarm daha önce kurulmadıysa ve sipariş onaylandıysa yeni alarm kur
         if (!existingTask && ['processing', 'completed'].includes(payload.status) && productData.estimated_lifespan_days > 0) {
           const triggerDate = new Date();
           triggerDate.setDate(triggerDate.getDate() + productData.estimated_lifespan_days);
@@ -116,7 +119,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, order_id: supabaseOrderId }, { status: 200 });
 
   } catch (error: any) {
-    console.error('Webhook işleme hatası:', error.message);
-    return NextResponse.json({ error: 'Webhook işlenemedi', details: error.message }, { status: 500 });
+    console.error('Webhook error:', error.message);
+    return NextResponse.json({ error: 'Webhook processing failed', details: error.message }, { status: 500 });
   }
 }

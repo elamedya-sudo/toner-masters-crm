@@ -1,10 +1,11 @@
+// app/dashboard/page.tsx
 "use client";
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  LayoutDashboard, ShoppingCart, Users, Bell, 
-  LogOut, TrendingUp, Rocket, Mail, Phone, Calendar, RefreshCw, Search
+  LayoutDashboard, ShoppingCart, Users, Bell, FileText,
+  LogOut, TrendingUp, Rocket, Calendar, RefreshCw, Mail, Phone
 } from 'lucide-react';
 import { 
   CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis
@@ -40,7 +41,7 @@ export default function DashboardPage() {
 
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select('id, woo_order_id, total_amount, status, created_at, customers(first_name, last_name, company_name, email, phone)')
+        .select('id, woo_order_id, order_number, total_amount, status, created_at, customers(first_name, last_name, company_name, email, phone)')
         .gte('created_at', `${startDate}T00:00:00.000Z`)
         .lte('created_at', `${endDate}T23:59:59.999Z`)
         .order('created_at', { ascending: false });
@@ -48,7 +49,6 @@ export default function DashboardPage() {
       if (ordersError) throw ordersError;
       setOrders(ordersData || []);
 
-      // CRITICAL FIX: Sadece bugünden itibaren 14 gün içinde dolacak veya zamanı geçmiş alarmları çek
       const ikiHaftaSonrasi = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
       const { data: tasksData, error: tasksError } = await supabase
@@ -101,24 +101,21 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col lg:flex-row min-h-screen w-full bg-[#f8fafb] font-sans text-slate-800">
       
-      {/* --- SIDEBAR & MOBILE NAVIGATION --- */}
+      {/* ORTAK SIDEBAR */}
       <aside className="w-full lg:w-72 bg-[#001a10] text-slate-300 flex flex-col h-auto lg:h-screen shadow-2xl z-20 shrink-0">
-        {/* LOGO ALANI - FIX: Kesilmeyi önleyen rahat dolgu alanı */}
         <div className="p-6 lg:p-8 flex items-center justify-between lg:justify-center border-b border-[#008651]/20 w-full bg-[#00150d]">
           <div className="block h-12 w-44 relative">
-            <img 
-              src="/images/logo/logo.png" 
-              alt="Toner Masters Logo" 
-              className="h-full w-full object-contain brightness-110"
-            />
+            <img src="/images/logo/logo.png" alt="Logo" className="h-full w-full object-contain brightness-110" />
           </div>
           <div className="h-1 w-8 bg-[#008651] rounded-full hidden lg:block mt-2"></div>
         </div>
         
-        {/* NAVIGASYON - FIX: Mobilde yana kayan menü, masaüstünde dikey liste */}
         <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible px-4 lg:px-6 py-4 lg:py-8 gap-2 lg:space-y-2 whitespace-nowrap scrollbar-none">
           <a href="#" className="flex items-center gap-3 px-4 py-3 bg-[#008651] text-white rounded-xl shadow-lg shadow-[#008651]/20 text-xs lg:text-sm font-bold">
             <LayoutDashboard className="w-4 h-4 lg:w-5 lg:h-5" /> <span>Dashboard</span>
+          </a>
+          <a onClick={() => router.push('/dashboard/proposals')} className="flex items-center gap-3 px-4 py-3 hover:bg-[#008651]/10 hover:text-white rounded-xl text-xs lg:text-sm font-medium transition-all cursor-pointer">
+            <FileText className="w-4 h-4 lg:w-5 lg:h-5 text-slate-500" /> <span>Create Proposal</span>
           </a>
           <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-[#008651]/10 hover:text-white rounded-xl text-xs lg:text-sm font-medium transition-all">
             <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5 text-slate-500" /> <span>Order Flow</span>
@@ -131,16 +128,12 @@ export default function DashboardPage() {
           </a>
         </nav>
 
-        {/* PROFIL & LOGOUT */}
         <div className="p-4 lg:p-6 border-t border-[#008651]/20 bg-[#00150d] hidden lg:block mt-auto">
           <div className="flex items-center gap-3 p-3 bg-white/5 rounded-2xl border border-white/5">
             <div className="w-9 h-9 bg-[#008651] rounded-full flex items-center justify-center text-white font-bold text-sm">A</div>
             <div className="flex-1 overflow-hidden">
               <p className="text-xs font-bold text-white truncate">Aydın Abi</p>
-              <button 
-                onClick={handleLogout}
-                className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5 hover:text-red-400 font-bold tracking-wider uppercase"
-              >
+              <button onClick={handleLogout} className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5 hover:text-red-400 font-bold tracking-wider uppercase">
                 <LogOut className="w-3 h-3" /> Sign Out
               </button>
             </div>
@@ -148,44 +141,33 @@ export default function DashboardPage() {
         </div>
       </aside>
 
-      {/* --- ANA İÇERİK ALANI --- */}
+      {/* MAIN CONTENT */}
       <main className="flex-1 overflow-y-auto lg:h-screen">
         
-        {/* ÜST BAR */}
         <header className="bg-white border-b border-slate-200 px-6 lg:px-10 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-10">
           <div>
             <h1 className="text-xl lg:text-2xl font-black text-slate-900 tracking-tight">Executive Dashboard</h1>
             <p className="text-slate-400 text-xs lg:text-sm font-medium">Monitoring AU Toner Sales & Replenishment</p>
           </div>
 
-          {/* Tarih Seçici */}
           <div className="flex flex-wrap items-center gap-2 bg-[#f8fafb] p-2 rounded-2xl border border-slate-100 w-full sm:w-auto justify-between sm:justify-start">
             <input 
-              type="date" 
-              value={startDate} 
-              onChange={(e) => setStartDate(e.target.value)}
+              type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
               className="bg-white text-[11px] font-bold text-slate-700 px-2.5 py-1.5 rounded-xl border border-slate-200 outline-none w-[45%] sm:w-auto"
             />
             <span className="text-slate-300 font-bold text-xs">-</span>
             <input 
-              type="date" 
-              value={endDate} 
-              onChange={(e) => setEndDate(e.target.value)}
+              type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
               className="bg-white text-[11px] font-bold text-slate-700 px-2.5 py-1.5 rounded-xl border border-slate-200 outline-none w-[45%] sm:w-auto"
             />
-            <button 
-              onClick={fetchData}
-              className="p-2 bg-[#008651] text-white rounded-xl hover:bg-[#006b41] transition-all"
-            >
+            <button onClick={fetchData} className="p-2 bg-[#008651] text-white rounded-xl hover:bg-[#006b41] transition-all">
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </header>
 
-        {/* DETAY METRİKLER VE GRAFİKLER */}
         <div className="p-6 lg:p-10 max-w-[1600px] mx-auto w-full space-y-8">
           
-          {/* STATS KARTLARI */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Revenue</p>
@@ -205,7 +187,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ANALİTİK VE ALARMLAR GRİDİ */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             <div className="lg:col-span-2 bg-white p-6 lg:p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
               <h3 className="text-base lg:text-lg font-black text-slate-900 tracking-tight mb-6">Revenue Analytics</h3>
@@ -228,7 +209,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* TONER ALARMLARI LISTESI */}
             <div className="bg-white p-6 lg:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col">
               <h3 className="text-base lg:text-lg font-black text-slate-900 tracking-tight mb-6">Critical Toner Alarms (14 Days)</h3>
               <div className="space-y-4 overflow-y-auto flex-1 pr-1 max-h-[350px]">
@@ -258,7 +238,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* SİPARİŞ TABLOSU */}
           <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
             <div className="p-6 lg:p-8 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <h3 className="text-base lg:text-lg font-black text-slate-900 tracking-tight">Recent Order Flow</h3>
@@ -279,7 +258,7 @@ export default function DashboardPage() {
                     const cObj = Array.isArray(order.customers) ? order.customers[0] : order.customers;
                     return (
                       <tr key={order.id} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 lg:px-10 py-5 font-bold text-slate-400">#{order.woo_order_id}</td>
+                        <td className="px-6 lg:px-10 py-5 font-bold text-slate-400">#{order.order_number || order.woo_order_id}</td>
                         <td className="px-6 lg:px-10 py-5">
                           <div className="flex flex-col">
                             <span className="font-black text-slate-800">{cObj?.company_name || `${cObj?.first_name || ''} ${cObj?.last_name || ''}`}</span>

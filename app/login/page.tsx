@@ -1,15 +1,16 @@
+// app/login/page.tsx
 "use client";
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, Mail, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { Lock, Mail, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -17,84 +18,102 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    // Supabase Auth servisine giriş isteği atıyoruz
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
-      setError('Giriş başarısız. E-posta veya şifre hatalı.');
+      setError('Geçersiz e-posta veya şifre. Lütfen tekrar deneyin.');
       setLoading(false);
     } else {
-      // Giriş başarılıysa Aydın Abi'yi Dashboard'a yönlendiriyoruz
       router.push('/dashboard');
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
-      <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
-        
-        {/* Üst Logo ve Karşılama */}
-        <div className="text-center mb-8">
-          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
-            <Lock className="text-white w-8 h-8" />
+    <div className="flex min-h-screen w-full bg-white font-sans">
+      
+      {/* SOL TARAF: FORM ALANI */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-8 sm:px-16 md:px-24 xl:px-32 relative z-10">
+        <div className="max-w-md w-full mx-auto">
+          <div className="mb-10">
+            <img src="/images/logo/logo.png" alt="Toner Masters" className="h-14 w-auto object-contain mb-8" />
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Welcome Back</h1>
+            <p className="text-slate-500 mt-2 font-medium">Log in to the Toner Masters Executive Dashboard to manage orders and B2B proposals.</p>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-wide">TONER MASTERS</h1>
-          <p className="text-slate-500 mt-2 font-medium">Aydın Abi, lütfen giriş yap 👋</p>
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+                <p className="text-sm font-bold text-red-700">{error}</p>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email Address</label>
+              <div className="relative">
+                <Mail className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="email" 
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl pl-12 pr-4 py-4 outline-none focus:ring-2 focus:ring-[#008651]/20 focus:border-[#008651] transition-all"
+                  placeholder="admin@tonermasters.com.au"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Password</label>
+              <div className="relative">
+                <Lock className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="password" 
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl pl-12 pr-4 py-4 outline-none focus:ring-2 focus:ring-[#008651]/20 focus:border-[#008651] transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-[#008651] text-white py-4 rounded-xl font-bold shadow-lg shadow-[#008651]/30 hover:bg-[#006b41] transition-all disabled:opacity-70 mt-4"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                <>Sign In <ArrowRight className="w-5 h-5" /></>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-12 text-center lg:text-left">
+            <p className="text-xs font-bold text-slate-400">© 2026 Toner Masters Pty Ltd. Commercial Portal.</p>
+          </div>
         </div>
-
-        {/* Hata Mesajı Kutusu */}
-        {error && (
-          <div className="mb-6 bg-red-50 text-red-600 p-4 rounded-xl flex items-center gap-3 text-sm font-bold border border-red-100 animate-pulse">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p>{error}</p>
-          </div>
-        )}
-
-        {/* Giriş Formu */}
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">E-Posta Adresi</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
-              <input 
-                type="email" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all font-medium text-slate-700"
-                placeholder="ornek@tonermasters.com.au"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Şifre</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
-              <input 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all font-medium text-slate-700"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-          </div>
-
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center gap-2"
-          >
-            {loading ? 'Giriş Yapılıyor...' : 'Sisteme Giriş Yap'}
-          </button>
-        </form>
-        
       </div>
+
+      {/* SAĞ TARAF: KURUMSAL GÖRSEL ALAN */}
+      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-[#001a10] to-[#008651] flex-col items-center justify-center relative overflow-hidden">
+        {/* Dekoratif Çemberler */}
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-white/5 rounded-full translate-x-1/3 -translate-y-1/3 blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#000000]/20 rounded-full -translate-x-1/3 translate-y-1/3 blur-3xl pointer-events-none"></div>
+        
+        <div className="relative z-10 p-20 text-center">
+          <div className="w-20 h-20 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20 flex items-center justify-center mx-auto mb-8 shadow-2xl">
+            <div className="w-10 h-10 bg-white rounded-full"></div>
+          </div>
+          <h2 className="text-5xl font-black text-white mb-6 leading-tight">B2B Commercial<br/>Supply Engine.</h2>
+          <p className="text-[#008651] text-lg font-medium bg-white/10 py-3 px-6 rounded-full inline-block backdrop-blur-sm border border-white/20">
+            Powered by Data, Driven by Service.
+          </p>
+        </div>
+      </div>
+      
     </div>
   );
 }
