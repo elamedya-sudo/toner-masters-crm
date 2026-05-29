@@ -4,32 +4,24 @@ import { supabase } from '../../../lib/supabase';
 export async function POST(request: Request) {
   try {
     const event = request.headers.get('x-wc-webhook-event');
-    
-    // 1. ZIRH: Gelen paketi direkt JSON yapmaya zorlamak yerine önce ham metin olarak alıyoruz
     const rawBody = await request.text();
     let payload: any = {};
 
     try {
-      // Eğer düzgün bir JSON ise (Gerçek siparişlerde burası çalışacak)
       payload = JSON.parse(rawBody);
     } catch (parseError) {
-      // Eğer JSON değilse ve 'webhook_id=4' gibi form datası olarak geliyorsa (Ping atarken burası çalışacak)
       const params = new URLSearchParams(rawBody);
       payload = Object.fromEntries(params);
     }
 
-    // 2. PING (TEST) KONTROLÜ
     if (event === 'ping' || payload.webhook_id) {
-      console.log('WooCommerce Ping başarılı!');
       return NextResponse.json({ message: 'Webhook başarıyla bağlandı!' }, { status: 200 });
     }
 
-    // Sipariş numarası veya fatura detayı yoksa işlemi durdur
     if (!payload.id || !payload.billing) {
-      return NextResponse.json({ error: 'Sipariş detayları eksik veya geçersiz format.' }, { status: 400 });
+      return NextResponse.json({ error: 'Sipariş detayları eksik.' }, { status: 400 });
     }
 
-    // 3. MÜŞTERİ BİLGİSİNİ KAYDET VEYA GÜNCELLE
     const email = payload.billing?.email || `no-email-${payload.id}@tonermasters.com.au`;
     
     const { data: customerData, error: customerError } = await supabase
@@ -48,7 +40,6 @@ export async function POST(request: Request) {
     if (customerError) throw customerError;
     const supabaseCustomerId = customerData.id;
 
-    // 4. SİPARİŞİ KAYDET
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .upsert({
@@ -63,7 +54,6 @@ export async function POST(request: Request) {
     if (orderError) throw orderError;
     const supabaseOrderId = orderData.id;
 
-    // 5. SİPARİŞ KALEMLERİ VE TONER ALARMLARI
     const lineItems = payload.line_items || [];
     
     for (const item of lineItems) {
@@ -91,15 +81,24 @@ export async function POST(request: Request) {
       }
 
       if (productData) {
-        await supabase.from('order_items').insert({
+        // Mükerrer kayıt engeli için sipariş kalemini güvenli insert yapıyoruz
+        await supabase.from('order_items').upsert({
           order_id: supabaseOrderId,
           product_id: productData.id,
           quantity: item.quantity || 1,
           price: parseFloat(item.price || 0)
-        });
+        }, { onConflict: 'id' });
 
-        // Eğer sipariş durumu 'processing' veya 'completed' ise alarm kur
-        if (['processing', 'completed'].includes(payload.status) && productData.estimated_lifespan_days > 0) {
+        // CRITICAL FIX: Bu sipariş ve bu ürün için halihazırda kurulmuş bir alarm var mı?
+        const { data: existingTask } = await supabase
+          .from('replenishment_tasks')
+          .select('id')
+          .eq('related_order_id', supabaseOrderId)
+          .eq('product_id', productData.id)
+          .maybeSingle();
+
+        // Eğer alarm daha önce kurulmadıysa ve sipariş onaylandıysa yeni alarm kur
+        if (!existingTask && ['processing', 'completed'].includes(payload.status) && productData.estimated_lifespan_days > 0) {
           const triggerDate = new Date();
           triggerDate.setDate(triggerDate.getDate() + productData.estimated_lifespan_days);
 
